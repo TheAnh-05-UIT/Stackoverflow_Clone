@@ -95,6 +95,56 @@
 # docker compose -p nhom22 up -d
 # docker exec -it my-db mysql -u root -p
 
+# version: "3.9"
+
+# services:
+#     mysqldb:
+#         image: mysql:5.7
+#         container_name: my-db
+#         restart: unless-stopped
+#         command: --init-file /data/application/init.sql
+#         volumes:
+#             - ./initDB.sql:/data/application/init.sql
+#         environment:
+#             MYSQL_ROOT_PASSWORD: 123456
+#             MYSQL_DATABASE: stack_overflow
+#         ports:
+#             - "3307:3306" # expose đúng port MySQL mặc định
+#         healthcheck:
+#             test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+#             interval: 5s
+#             timeout: 3s
+#             retries: 10
+
+#     backend:
+#         container_name: my-backend
+#         build:
+#             context: ./stackBE
+#         environment:
+#             HOST: mysqldb # tên service MySQL trong Docker network
+#             DATABASE_PORT: 3306 # port MySQL bên trong container
+#             DATABASE: stack_overflow
+#             USER: root
+#             PASSWORD: 123456
+#         ports:
+#             - "8000:8000"
+#         depends_on:
+#             mysqldb:
+#                 condition: service_healthy
+
+#     nginx:
+#         container_name: my-nginx
+#         build:
+#             context: .
+#             dockerfile: ./nginx/Dockerfile
+#         depends_on:
+#             - backend
+#         restart: always
+#         ports:
+#             - "8001:80"
+#         volumes:
+#             - ./nginx/config/default.conf:/etc/nginx/conf.d/default.conf
+
 version: "3.9"
 
 services:
@@ -109,9 +159,20 @@ services:
             MYSQL_ROOT_PASSWORD: 123456
             MYSQL_DATABASE: stack_overflow
         ports:
-            - "3307:3306" # expose đúng port MySQL mặc định
+            - "3307:3306"
         healthcheck:
-            test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+            # --- ĐÃ SỬA: Thêm User và Password vào lệnh ping ---
+            test:
+                [
+                    "CMD",
+                    "mysqladmin",
+                    "ping",
+                    "-h",
+                    "localhost",
+                    "-u",
+                    "root",
+                    "-p123456",
+                ]
             interval: 5s
             timeout: 3s
             retries: 10
@@ -121,8 +182,9 @@ services:
         build:
             context: ./stackBE
         environment:
-            HOST: mysqldb # tên service MySQL trong Docker network
-            DATABASE_PORT: 3306 # port MySQL bên trong container
+            # Quan trọng: HOST phải trỏ vào tên service 'mysqldb'
+            HOST: mysqldb
+            DATABASE_PORT: 3306
             DATABASE: stack_overflow
             USER: root
             PASSWORD: 123456
@@ -141,6 +203,7 @@ services:
             - backend
         restart: always
         ports:
+            # Web sẽ chạy ở cổng 8001
             - "8001:80"
         volumes:
             - ./nginx/config/default.conf:/etc/nginx/conf.d/default.conf
