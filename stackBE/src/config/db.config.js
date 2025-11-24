@@ -19,6 +19,12 @@ const sequelize = new Sequelize(
     }
 );
 
+(async () => {
+    await sequelize.sync();
+})();
+
+module.exports = sequelize;
+
 // const sequelize = new Sequelize(config.DB.DATABASE, config.DB.USER, config.DB.PASSWORD,
 //   {
 //     dialect: 'mysql',
@@ -35,9 +41,3 @@ const sequelize = new Sequelize(
 //     },
 //     logging: false
 //   });
-
-(async () => {
-    await sequelize.sync();
-})();
-
-module.exports = sequelize;

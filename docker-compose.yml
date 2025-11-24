@@ -145,23 +145,90 @@
 #         volumes:
 #             - ./nginx/config/default.conf:/etc/nginx/conf.d/default.conf
 
+# version: "3.9"
+
+# services:
+#     mysqldb:
+#         image: mysql:5.7
+#         container_name: my-db
+#         restart: unless-stopped
+#         command: --init-file /data/application/init.sql
+#         volumes:
+#             - ./initDB.sql:/data/application/init.sql
+#         environment:
+#             MYSQL_ROOT_PASSWORD: 123456
+#             MYSQL_DATABASE: stack_overflow
+#         ports:
+#             - "3307:3306"
+#         healthcheck:
+#             # --- ĐÃ SỬA: Thêm User và Password vào lệnh ping ---
+#             test:
+#                 [
+#                     "CMD",
+#                     "mysqladmin",
+#                     "ping",
+#                     "-h",
+#                     "localhost",
+#                     "-u",
+#                     "root",
+#                     "-p123456",
+#                 ]
+#             interval: 5s
+#             timeout: 3s
+#             retries: 10
+
+#     backend:
+#         container_name: my-backend
+#         build:
+#             context: ./stackBE
+#         environment:
+#             # Quan trọng: HOST phải trỏ vào tên service 'mysqldb'
+#             HOST: mysqldb
+#             DATABASE_PORT: 3306
+#             DATABASE: stack_overflow
+#             USER: root
+#             PASSWORD: 123456
+#         ports:
+#             - "8000:8000"
+#         depends_on:
+#             mysqldb:
+#                 condition: service_healthy
+
+#     nginx:
+#         container_name: my-nginx
+#         build:
+#             context: .
+#             dockerfile: ./nginx/Dockerfile
+#         depends_on:
+#             - backend
+#         restart: always
+#         ports:
+#             # Web sẽ chạy ở cổng 8001
+#             - "8001:80"
+#         volumes:
+#             - ./nginx/config/default.conf:/etc/nginx/conf.d/default.conf
+
 version: "3.9"
 
 services:
+    # --- DỊCH VỤ DATABASE (MySQL) ---
     mysqldb:
         image: mysql:5.7
         container_name: my-db
         restart: unless-stopped
-        command: --init-file /data/application/init.sql
+        # Tối ưu hóa quan trọng:
+        # 1. --skip-name-resolve: Bỏ qua tra cứu DNS giúp web chạy nhanh hơn
+        # 2. --default-authentication-plugin: Giúp Backend cũ kết nối được dễ dàng
+        command: --init-file /data/application/init.sql --skip-name-resolve --default-authentication-plugin=mysql_native_password
         volumes:
             - ./initDB.sql:/data/application/init.sql
         environment:
             MYSQL_ROOT_PASSWORD: 123456
             MYSQL_DATABASE: stack_overflow
         ports:
-            - "3307:3306"
+            - "3307:3306" # Port 3307 để tránh trùng với MySQL trên máy thật
         healthcheck:
-            # --- ĐÃ SỬA: Thêm User và Password vào lệnh ping ---
+            # SỬA LỖI QUAN TRỌNG: Thêm user/pass vào lệnh ping để không bị Access Denied
             test:
                 [
                     "CMD",
@@ -177,33 +244,40 @@ services:
             timeout: 3s
             retries: 10
 
+    # --- DỊCH VỤ BACKEND (Node.js API) ---
     backend:
         container_name: my-backend
         build:
             context: ./stackBE
         environment:
-            # Quan trọng: HOST phải trỏ vào tên service 'mysqldb'
-            HOST: mysqldb
+            # QUAN TRỌNG NHẤT: Ép Node.js chạy ở cổng 8000 (mặc định nó chạy 5000 sẽ lệch với Nginx)
+            PORT: 8000
+
+            # Cấu hình kết nối Database
+            HOST: mysqldb # Trỏ vào tên service MySQL (tuyệt đối không dùng localhost)
             DATABASE_PORT: 3306
             DATABASE: stack_overflow
             USER: root
             PASSWORD: 123456
+
+            # Các biến môi trường khác (nếu có)
+            # JWT_SECRET: your_secret_key
         ports:
             - "8000:8000"
         depends_on:
             mysqldb:
-                condition: service_healthy
+                condition: service_healthy # Chỉ khởi động Backend khi Database đã Healthy
 
+    # --- DỊCH VỤ FRONTEND (Nginx + React) ---
     nginx:
         container_name: my-nginx
         build:
             context: .
             dockerfile: ./nginx/Dockerfile
-        depends_on:
-            - backend
         restart: always
         ports:
-            # Web sẽ chạy ở cổng 8001
-            - "8001:80"
+            - "8001:80" # Truy cập web từ Windows qua cổng 8001
+        depends_on:
+            - backend
         volumes:
             - ./nginx/config/default.conf:/etc/nginx/conf.d/default.conf
